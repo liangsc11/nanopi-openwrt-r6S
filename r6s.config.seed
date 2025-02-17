@@ -1,58 +1,35 @@
-#!/bin/sh
+# 目標系統配置，支援 NanoPi R6S 的 Rockchip 架構
+CONFIG_TARGET_rockchip=y
+CONFIG_TARGET_rockchip_armv8=y
+CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r6s=y
 
-display_usage() {
-	echo "USB WiFi AP 設置"
-	echo -e "\nUsage: $0 <SSID> <密碼>\n"
-	echo -e "例如: $0 OpenWrt 12345678\n"
-}
+# 編譯優化與根文件系統大小
+CONFIG_TARGET_OPTIMIZATION="-O2 -pipe"  # 使用 -O2 以提高穩定性
+CONFIG_TARGET_ROOTFS_PARTSIZE=640       # 根文件系統分割區大小，可視需求調整
 
-# 如果參數少於 2 個，顯示使用方法
-if [ $# -le 1 ]; then
-	display_usage
-	exit 1
-fi
+# 核心驅動與網路支援
+CONFIG_PACKAGE_kmod-r8125=y            # Realtek 網卡驅動，用於千兆網路
+CONFIG_PACKAGE_ppp=y                   # PPP 支援
+CONFIG_PACKAGE_ppp-mod-pppoe=y         # PPPoE 支援
+CONFIG_PACKAGE_dnsmasq=y               # DNS 與 DHCP 支援
+CONFIG_PACKAGE_firewall=y              # 防火牆功能
+CONFIG_PACKAGE_ip6tables=y             # IPv6 支援
+CONFIG_PACKAGE_iptables=y              # IPv4 支援
 
-# 如果使用 --help 或 -h 參數，顯示使用方法
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-	display_usage
-	exit 0
-fi
+# Luci 基本管理界面，僅包含核心管理功能與預設主題
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-base=y
+CONFIG_PACKAGE_luci-mod-admin-full=y
+CONFIG_PACKAGE_luci-theme-bootstrap=y  # 官方預設主題
+CONFIG_PACKAGE_luci-proto-ppp=y        # 支援 PPP 協定
 
-# 刪除現有的 WiFi 配置並重新生成
-rm -f /etc/config/wireless
-wifi config
+# 台灣地區的本地化設置
+CONFIG_PACKAGE_zoneinfo-asia=y                     # 亞洲時區數據
+CONFIG_PACKAGE_luci-i18n-base-zh-tw=y              # 繁體中文介面
+CONFIG_PACKAGE_ntpd=y                              # 網路時間協定（NTP）支援
+CONFIG_NTP_SERVER="time.stdtime.gov.tw tick.stdtime.gov.tw tock.stdtime.gov.tw"  # 台灣 NTP 伺服器
 
-# 使用 uci 批次設置無線配置
-uci batch <<EOF
-set wireless.radio0.hwmode='11a'
-set wireless.radio0.country='TW'                 # 設定為台灣
-set wireless.radio0.channel='36'                 # 設定 5GHz 頻道
-set wireless.radio0.legacy_rates='0'
-set wireless.radio0.mu_beamformer='1'
-set wireless.radio0.htmode='VHT80'               # 使用 80MHz 頻寬以提高速度
-set wireless.default_radio0.device='radio0'
-set wireless.default_radio0.network='lan'
-set wireless.default_radio0.mode='ap'
-set wireless.default_radio0.ssid=$1              # 使用輸入的參數作為 SSID
-set wireless.default_radio0.disassoc_low_ack='0'
-set wireless.default_radio0.encryption='psk2+ccmp' # 使用 WPA2-CCMP 加密
-set wireless.default_radio0.key=$2               # 使用輸入的參數作為 WiFi 密碼
-set wireless.default_radio0.wps_pushbutton='0'
-EOF
-
-# 提交更改
-uci commit wireless
-
-# 重新加載 WiFi 設置
-wifi reload
-
-# 提示是否重啟系統
-read -r -p "需要重啟系統以應用更改嗎？[Y/n] " response
-case "$response" in
-	[yY][eE][sS]|[yY])
-		reboot
-		;;
-	*)
-		exit
-		;;
-esac
+# 可選的插件，使用 "=m" 方式添加到軟體包管理選項
+CONFIG_PACKAGE_luci-app-adblock=m                  # Adblock 廣告阻擋
+CONFIG_PACKAGE_luci-app-openvpn=m                  # OpenVPN 支援
+CONFIG_PACKAGE_luci-app-wireguard=m                # WireGuard 支援
