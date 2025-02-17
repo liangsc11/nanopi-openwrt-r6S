@@ -1,41 +1,58 @@
-CONFIG_TARGET_rockchip=y
-CONFIG_TARGET_rockchip_armv8=y
-CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r6s=y
+#!/bin/sh
 
-CONFIG_TARGET_OPTIMIZATION="-O3 -pipe"
-CONFIG_TARGET_ROOTFS_PARTSIZE=640
+display_usage() {
+	echo "USB WiFi AP 設置"
+	echo -e "\nUsage: $0 <SSID> <密碼>\n"
+	echo -e "例如: $0 OpenWrt 12345678\n"
+}
 
+# 如果參數少於 2 個，顯示使用方法
+if [ $# -le 1 ]; then
+	display_usage
+	exit 1
+fi
 
-CONFIG_PACKAGE_luci-app-adbyby-plus=y
-CONFIG_PACKAGE_luci-app-ddnsto=y
-CONFIG_PACKAGE_luci-app-dockerman=y
-CONFIG_DOCKER_OPTIONAL_FEATURES=y
-CONFIG_PACKAGE_luci-app-godproxy=y
-CONFIG_PACKAGE_luci-app-netdata=y
-CONFIG_PACKAGE_luci-app-openclash=y
-CONFIG_PACKAGE_luci-app-cpufreq=y
-CONFIG_PACKAGE_luci-app-passwall=y
-CONFIG_PACKAGE_luci-app-qbittorrent=y
-CONFIG_PACKAGE_luci-app-statistics=y
-CONFIG_PACKAGE_luci-app-transmission=y
-CONFIG_PACKAGE_luci-theme-argon=y
-CONFIG_PACKAGE_luci-theme-openwrt=y
-CONFIG_PACKAGE_luci-theme-openwrt-2020=y
-CONFIG_PACKAGE_collectd-mod-ping=y
-CONFIG_PACKAGE_collectd-mod-thermal=y
+# 如果使用 --help 或 -h 參數，顯示使用方法
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+	display_usage
+	exit 0
+fi
 
+# 刪除現有的 WiFi 配置並重新生成
+rm -f /etc/config/wireless
+wifi config
 
-CONFIG_PACKAGE_kmod-gpu-lima=y
-CONFIG_PACKAGE_kmod-ath9k-htc=y
-CONFIG_PACKAGE_kmod-mt76x0u=y
-CONFIG_PACKAGE_kmod-mt76x2u=y
-CONFIG_PACKAGE_kmod-r8125=y
-CONFIG_PACKAGE_kmod-rtw88=y
-CONFIG_PACKAGE_kmod-rtl8821cu=y
+# 使用 uci 批次設置無線配置
+uci batch <<EOF
+set wireless.radio0.hwmode='11a'
+set wireless.radio0.country='TW'                 # 設定為台灣
+set wireless.radio0.channel='36'                 # 設定 5GHz 頻道
+set wireless.radio0.legacy_rates='0'
+set wireless.radio0.mu_beamformer='1'
+set wireless.radio0.htmode='VHT80'               # 使用 80MHz 頻寬以提高速度
+set wireless.default_radio0.device='radio0'
+set wireless.default_radio0.network='lan'
+set wireless.default_radio0.mode='ap'
+set wireless.default_radio0.ssid=$1              # 使用輸入的參數作為 SSID
+set wireless.default_radio0.disassoc_low_ack='0'
+set wireless.default_radio0.encryption='psk2+ccmp' # 使用 WPA2-CCMP 加密
+set wireless.default_radio0.key=$2               # 使用輸入的參數作為 WiFi 密碼
+set wireless.default_radio0.wps_pushbutton='0'
+EOF
 
-CONFIG_PACKAGE_iw=y
-CONFIG_PACKAGE_iwinfo=y
-CONFIG_PACKAGE_wpad-basic-wolfssl=y
-CONFIG_DRIVER_11AC_SUPPORT=y
-CONFIG_DRIVER_11N_SUPPORT=y
-CONFIG_DRIVER_11W_SUPPORT=y
+# 提交更改
+uci commit wireless
+
+# 重新加載 WiFi 設置
+wifi reload
+
+# 提示是否重啟系統
+read -r -p "需要重啟系統以應用更改嗎？[Y/n] " response
+case "$response" in
+	[yY][eE][sS]|[yY])
+		reboot
+		;;
+	*)
+		exit
+		;;
+esac
